@@ -14,6 +14,7 @@ import redirect
 import dyntools
 import pssplot
 import random
+import copy
 import math
 import multiprocessing
 import time
@@ -386,7 +387,7 @@ def steadyStateSolve(loads, bus_name, load_id):
         psse.load_chng_4(bus_name[load], load_id[load], [_i, _i, _i, _i, _i, _i], [loads[load].real, loads[load].imag, _f, _f, _f, _f])
 
     rarray, Ok_Solution, localMin, localMax = Solve_Steady()
-    return rarray
+    return rarray, Ok_Solution
 
 #returns reward values
 def reward(pmu, loads, max_loads, reward_coefficient):
@@ -394,22 +395,29 @@ def reward(pmu, loads, max_loads, reward_coefficient):
     for p in range(len(pmu)):
         if (p < 0.94 or p > 1.06):
             total_reward -= reward_coefficient[p]
+        else:
+            total_reward += (loads[p] / max_loads[p]) * reward_coefficient[p]
 
-    for i in range(len(loads)):
-        total_reward += (loads[i] / max_loads[i]) * reward_coefficient[i]
+
 
     return total_reward
 
+def run_rollout(cur_load, max_loads):
+    return 1.0
 
 def begin_policy_rollout():
     Initialize_Case()
 
     cplxPower, cplxCurrent, cplImpedance, Bus_ids, Load_Numbers, Load_Amount = ZIP_Loads()
 
-    load_buses = []
-    load_bus_ids = []
-
-    for j in range(len(Bus_ids)):
+    print(Load_Amount)
+    while True:
+        max_reward = []
+        for action in range(len(Bus_ids)):
+            cur_load = copy.deepcopy(Load_Amount)
+            cur_load[action] -= Load_Amount[action] / 10.0
+            max_reward.append(run_rollout(cur_load, Load_Amount))
+        
         pass
 
 
