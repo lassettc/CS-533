@@ -390,7 +390,16 @@ def steadyStateSolve(loads, bus_name, load_id):
 
 #returns reward values
 def reward(pmu, loads, max_loads, reward_coefficient):
-    pass
+    total_reward = 0.0
+    for p in range(len(pmu)):
+        if (p < 0.94 or p > 1.06):
+            total_reward -= reward_coefficient[p]
+
+    for i in range(len(loads)):
+        total_reward += (loads[i] / max_loads[i]) * reward_coefficient[i]
+
+    return total_reward
+
 
 def begin_policy_rollout():
     Initialize_Case()
