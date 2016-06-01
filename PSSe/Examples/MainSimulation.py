@@ -4,24 +4,23 @@ from collections import defaultdict
 import os,sys
 
 #Change to your PSS/e Location
-sys.path.append(r"C:\Program Files (x86)\PTI\PSSEXplore33\PSSBIN") #Give the path to PSSBIN to imoport psspy
-os.environ['PATH'] = (r"C:\Program Files (x86)\PTI\PSSEXplore33\PSSBIN;" #Tell PSSE where "itself" is
-                      + os.environ['PATH'])
-						  
-import pssarrays				  
+sys.path.append(r"C:\Program Files (x86)\PTI\PSSEXplore34\PSSPY27") #Give the path to PSSBIN to imoport psspy
+sys.path.append(r"C:\Program Files (x86)\PTI\PSSEXplore34\PSSBIN")
+os.environ['PATH'] = (r"C:\Program Files (x86)\PTI\PSSEXplore34\PSSPY27;" + r"C:\Program Files (x86)\PTI\PSSEXplore34\PSSBIN;" + os.environ['PATH'])
+#import pssarrays
 import psspy
+import pssarrays
 import redirect
 import dyntools
 import pssplot
 import random
 import math
-import copy
 import multiprocessing
 import time
 #import matplotlib
-_i=psspy.getdefaultint() 
-_f=psspy.getdefaultreal() 
-_s=psspy.getdefaultchar() 
+_i=psspy.getdefaultint()
+_f=psspy.getdefaultreal()
+_s=psspy.getdefaultchar()
 redirect.psse2py()
 
 in_file = 'savnw.sav'
@@ -31,8 +30,9 @@ def Initialize_Case():
 	psspy.psseinit(150000) #Initialize size of case, just choose large number
 	psspy.case(in_file) #Load example case savnw.sav
 
-	
+
 #Change initial conditions by scaling loads in case#
+import copy
 def Change_Init_Conds(Load_Numbs, Load_IDs, Complex_Power, Complex_Current, Complex_Impedance):
 	#print Complex_Power[0].strip('()j')
 	Initialized_Loads = []*len(Complex_Power)
@@ -90,6 +90,9 @@ def Solve_Steady():
 	
 	return rarray, Ok_Solution, min(rarray[0]), max(rarray[0])
 
+def reward_function(rarray):
+    pass
+
 #Change our PSS/e array to a list
 def PSSE_Arrays2_List(In_Array):
 	Temp_1 = ''.join(str(e) for e in In_Array)
@@ -126,13 +129,13 @@ def Lists_2_Dicts(Array1, Array2):
 
 #Return the load information for current case (all buses), returns how many buses, numbers of buses, complex loads of each bus, complex current of each bus, and complex impedance of each bus	
 def Return_Load_Info():	
-	ierr, Complex_Power = psspy.aloadcplx(-1, 4, 'MVANOM') #Obtain Complex Power of Loads
-	ierr, Complex_Current = psspy.aloadcplx(-1, 4, 'ILNOM') #Obtain Complex Currents of Loads
-	ierr, Complex_Impedance = psspy.aloadcplx(-1, 4, 'YLNOM') #Obtain Complex Impedances of Loads
-	ierr, Load_Numbers = psspy.aloadint(-1, 4, 'NUMBER') #Obtain Load Numbers
-	ierr, Load_Count = psspy.aloadcount(-1, 4) #Obtain Count of Loads
-
-	return Load_Count, Load_Numbers, Complex_Power, Complex_Current, Complex_Impedance
+    ierr, Complex_Power = psspy.aloadcplx(-1, 4, 'MVANOM') #Obtain Complex Power of Loads
+    ierr, Complex_Current = psspy.aloadcplx(-1, 4, 'ILNOM') #Obtain Complex Currents of Loads
+    ierr, Complex_Impedance = psspy.aloadcplx(-1, 4, 'YLNOM') #Obtain Complex Impedances of Loads
+    ierr, Load_Numbers = psspy.aloadint(-1, 4, 'NUMBER') #Obtain Load Numbers
+    ierr, Load_Count = psspy.aloadcount(-1, 4) #Obtain Count of Loads
+    ierr, Load_Amount = psspy.aloadcplx(-1, 4, 'MVAACT')
+    return Load_Count, Load_Numbers, Load_Amount, Complex_Power, Complex_Current, Complex_Impedance
 
 #Ignore
 def Update_Dict_Vals(Dict2_Update):
@@ -140,7 +143,7 @@ def Update_Dict_Vals(Dict2_Update):
 
 #Convert our complex power, currents and impedances to workable data types	
 def ZIP_Loads():
-	Load_Count, Load_Numbers, Complex_Power, Complex_Current, Complex_Impedance = Return_Load_Info() 
+	Load_Count, Load_Numbers, Load_Amount, Complex_Power, Complex_Current, Complex_Impedance = Return_Load_Info()
 
 	Load_Numbers = PSSE_Arrays2_List(Load_Numbers)
 	
@@ -150,7 +153,7 @@ def ZIP_Loads():
 	cplxCurrent = PSSE_Arrays2_List(Complex_Current)
 	cplImpedance = PSSE_Arrays2_List(Complex_Impedance)
 	
-	return cplxPower, cplxCurrent, cplImpedance, Load_Numbers, Load_ID_List
+	return cplxPower, cplxCurrent, cplImpedance, Load_Numbers, Load_ID_List, Load_Amount
 
 
 #Created dictionaries for load numbers to complex power/current/impedance
@@ -225,7 +228,7 @@ def lineIDListCreation(newFromBranches, newToBranches):
 #With our predefined lines, trip them which most commonly is used to island a case
 def createIsland(toBus, fromBus):
 	for x in range(0, len(toBus)):
-		print toBus[x], fromBus	[x]
+		print(toBus[x], fromBus	[x])
 		psspy.branch_chng(fromBus[x], toBus[x],r"""1""",[0,_i,_i,_i,_i,_i],[_f,_f,_f,_f,_f,_f,_f,_f,_f,_f,_f,_f,_f,_f,_f])
 	psspy.save(r"""C:\Users\psse\aires\Carter_Case\Poland_Case\Islanded.sav""")	
 
@@ -319,19 +322,21 @@ def islandCaseNoDynamics(zone):
 	
 #Get power, generation and losses for a certain 'microgrid' and main grid + print it out.
 def inOutMicroGridTotals(zone, zonesMWload, zonesMVARload, zonesMWgen, zonesMVARgen, zonesMWloss, zonesMVARloss):
-	microGridRealPower = zonesMWgen[0][zone-1]
-	microGridReactivePower = zonesMVARgen[0][zone-1]
-	microGridRealLoad = zonesMWload[0][zone-1]
-	microGridReactiveLoad = zonesMVARload[0][zone-1]
-	microGridRealLoss = zonesMWloss[0][zone-1]
-	microGridReactiveLoss = zonesMVARloss[0][zone-1]
-	mainGridRealPower = sum(zonesMWgen[0]) - microGridRealPower
-	mainGridReactivePower = sum(zonesMVARgen[0]) - microGridReactivePower
-	mainGridRealLoad = sum(zonesMWload[0]) - microGridRealLoad
-	mainGridReactiveLoad = sum(zonesMVARload[0]) - microGridReactiveLoad
-	mainGridRealLoss = sum(zonesMWloss[0]) - microGridRealLoss
-	mainGridReactiveLoss = sum(zonesMVARloss[0]) - microGridReactiveLoss
+    microGridRealPower = zonesMWgen[0][zone-1]
+    microGridReactivePower = zonesMVARgen[0][zone-1]
+    microGridRealLoad = zonesMWload[0][zone-1]
+    microGridReactiveLoad = zonesMVARload[0][zone-1]
+    microGridRealLoss = zonesMWloss[0][zone-1]
+    microGridReactiveLoss = zonesMVARloss[0][zone-1]
+    mainGridRealPower = sum(zonesMWgen[0]) - microGridRealPower
+    mainGridReactivePower = sum(zonesMVARgen[0]) - microGridReactivePower
+    mainGridRealLoad = sum(zonesMWload[0]) - microGridRealLoad
+    mainGridReactiveLoad = sum(zonesMVARload[0]) - microGridReactiveLoad
+    mainGridRealLoss = sum(zonesMWloss[0]) - microGridRealLoss
+    mainGridReactiveLoss = sum(zonesMVARloss[0]) - microGridReactiveLoss
+    return microGridRealPower, microGridReactivePower, microGridRealLoad, microGridReactiveLoad, microGridRealLoss, microGridReactiveLoss, mainGridRealPower, mainGridReactivePower, mainGridRealLoad, mainGridReactiveLoad, mainGridRealLoss, mainGridReactiveLoss
 
+'''
 	print '---------------------------Micro grid information---------------------------'
 	print 'Total real power: %d MW' %microGridRealPower
 	print 'Total reactive power: %d MVAR' %microGridReactivePower
@@ -345,29 +350,60 @@ def inOutMicroGridTotals(zone, zonesMWload, zonesMVARload, zonesMWgen, zonesMVAR
 	print 'Total real load: %d MW' %mainGridRealLoad
 	print 'Total reactive load: %d MVAR' %mainGridReactiveLoad
 	print 'Total real loss: %d MW' %mainGridRealLoss
-	print 'Total reactive loss: %d MVAR' %mainGridReactiveLoss	
-	
-	
-	return microGridRealPower, microGridReactivePower, microGridRealLoad, microGridReactiveLoad, microGridRealLoss, microGridReactiveLoss, mainGridRealPower, mainGridReactivePower, mainGridRealLoad, mainGridReactiveLoad, mainGridRealLoss, mainGridReactiveLoss
+	print 'Total reactive loss: %d MVAR' %mainGridReactiveLoss
+'''
+	#return microGridRealPower, microGridReactivePower, microGridRealLoad, microGridReactiveLoad, microGridRealLoss, microGridReactiveLoss, mainGridRealPower, mainGridReactivePower, mainGridRealLoad, mainGridReactiveLoad, mainGridRealLoss, mainGridReactiveLoss
 	
 #Solve our steady state solution, can implement initial condition/operating point changes.
 def steadyStateChangeInitSolution():
-	inputFile = 'Dynamics.dyr'
-	Initialize_Case()	
-	
-	cplxPower, cplxCurrent, cplImpedance, Load_Numbers, Load_ID_List = ZIP_Loads()
-	
-	
-	#Change_Init_Conds(Load_Numbers, Load_ID_List, cplxPower, cplxCurrent, cplImpedance)
-	#Change_OpPoint(Load_Numbers, Load_ID_List, cplxPower, cplxCurrent, cplImpedance)
-	
-	rarray, Ok_Solution, localMin, localMax = Solve_Steady()
-	fromBranch, toBranch = branchData()
-	newFromBranches, newToBranches, keepIndex = deleteDuplicateLineInstances(fromBranch, toBranch)
-	ierr, rarray = psspy.aflowreal(-1, -1, -1, 2, 'MVA')
-	lineMVAlist = deleteBadIndices(keepIndex, rarray[0])
-	
-	return lineMVAlist, Ok_Solution, localMin, localMax
+    inputFile = 'Dynamics.dyr'
+    Initialize_Case()
+
+    cplxPower, cplxCurrent, cplImpedance, Load_Numbers, Load_ID_List, Load_Amount = ZIP_Loads()
+    print(Load_Numbers)
+    print(Load_ID_List)
+    print(cplImpedance)
+    print(cplxPower)
+    print(Load_Amount)
+
+    Change_Init_Conds(Load_Numbers, Load_ID_List, cplxPower, cplxCurrent, cplImpedance)
+    #Change_OpPoint(Load_Numbers, Load_ID_List, cplxPower, cplxCurrent, cplImpedance)
+
+    rarray, Ok_Solution, localMin, localMax = Solve_Steady()
+    print(rarray)
+    print(Ok_Solution)
+    return
+    fromBranch, toBranch = branchData()
+    newFromBranches, newToBranches, keepIndex = deleteDuplicateLineInstances(fromBranch, toBranch)
+    ierr, rarray = psspy.aflowreal(-1, -1, -1, 2, 'MVA')
+    lineMVAlist = deleteBadIndices(keepIndex, rarray[0])
+
+    return lineMVAlist, Ok_Solution, localMin, localMax
+#Returns pmu vals
+def steadyStateSolve(loads, bus_name, load_id):
+
+    for load in range(load):
+        psse.load_chng_4(bus_name[load], load_id[load], [_i, _i, _i, _i, _i, _i], [loads[load].real, loads[load].imag, _f, _f, _f, _f])
+
+    rarray, Ok_Solution, localMin, localMax = Solve_Steady()
+    return rarray
+
+#returns reward values
+def reward(pmu, loads, max_loads, reward_coefficient):
+    pass
+
+def begin_policy_rollout():
+    Initialize_Case()
+
+    cplxPower, cplxCurrent, cplImpedance, Bus_ids, Load_Numbers, Load_Amount = ZIP_Loads()
+
+    load_buses = []
+    load_bus_ids = []
+
+    for j in range(len(Bus_ids)):
+        pass
+
+
 
 #This just shuffles loads around in the case, it's hard coded for RTS-96 at the moment so it won't work with savnw.  I'll modify for more universality.
 def Change_OpPoint(Load_Numbs, Load_IDs, Complex_Power, Complex_Current, Complex_Impedance):
