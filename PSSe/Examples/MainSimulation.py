@@ -25,7 +25,7 @@ _f=psspy.getdefaultreal()
 _s=psspy.getdefaultchar()
 redirect.psse2py()
 
-in_file = 'newCase_1.sav'
+in_file = 'staticCase39Update.sav'
 
 #Initializes our case with name defined by in_file#
 def Initialize_Case():
@@ -33,8 +33,34 @@ def Initialize_Case():
 	psspy.case(in_file) #Load example case savnw.sav
 
 
+def createNewUnstableCase():
+    foundNewCase = 0
+    while foundNewCase == 0:
+        Initialize_Case()
+        busVoltages = buildUnstableCase()
+        if min(busVoltages[0]) < 0.94 and min(busVoltages[0]) > 0.8 and max(busVoltages[0]) < 1.06:	
+            foundNewCase = 1 
+        else:
+		    foundNewCase = 0 
+			
+			
+def buildUnstableCase():
+   
+    cplxPower, cplxCurrent, cplImpedance, Bus_ids, Load_Numbers, Load_Amount = ZIP_Loads()
+    print Bus_ids
+    for x in range(0, len(Bus_ids)):
+        
+        realPower = complex(cplxPower[x]).real
+        reactivePower = complex(cplxPower[x]).imag
+        changedRealPower = realPower + realPower*random.uniform(-0.5,0.5)
+        changedImaginaryPower = reactivePower + reactivePower*random.uniform(-0.5,0.5)
+        psspy.load_chng_4(int(Bus_ids[x]),Load_Numbers[x],[_i,_i,_i,_i,_i,_i],[changedRealPower, changedImaginaryPower,_f,_f,_f,_f]) #Tell PSS/e to change the bus loading
+      
+    rarray, Ok_Solution, localMin, localMax = Solve_Steady()
+
+    return rarray
+		
 #Change initial conditions by scaling loads in case#
-import copy
 def Change_Init_Conds(Load_Numbs, Load_IDs, Complex_Power, Complex_Current, Complex_Impedance):
 	#print Complex_Power[0].strip('()j')
 	Initialized_Loads = []*len(Complex_Power)
@@ -614,8 +640,9 @@ def Change_OpPoint(Load_Numbs, Load_IDs, Complex_Power, Complex_Current, Complex
 		location3 += 1
 		
 		
-def main():
-    begin_uniform_loadshed()
+def main(): 
+    createNewUnstableCase()
+    #begin_uniform_loadshed()
     #begin_policy_rollout()
 
 	#steadyStateChangeInitSolution() #Basic case to solve the case with no dynamcis
