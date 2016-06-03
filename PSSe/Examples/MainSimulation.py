@@ -18,13 +18,14 @@ import copy
 import math
 import multiprocessing
 import time
+import sys
 #import matplotlib
 _i=psspy.getdefaultint()
 _f=psspy.getdefaultreal()
 _s=psspy.getdefaultchar()
 redirect.psse2py()
 
-in_file = 'savnw.sav'
+in_file = 'newCase_1.sav'
 
 #Initializes our case with name defined by in_file#
 def Initialize_Case():
@@ -382,28 +383,103 @@ def steadyStateChangeInitSolution():
     return lineMVAlist, Ok_Solution, localMin, localMax
 #Returns pmu vals
 def steadyStateSolve(loads, bus_name, load_id):
-
-    for load in range(load):
-        psse.load_chng_4(bus_name[load], load_id[load], [_i, _i, _i, _i, _i, _i], [loads[load].real, loads[load].imag, _f, _f, _f, _f])
+    print(bus_name)
+    for load in range(len(loads[0])):
+        psspy.load_chng_4(int(bus_name[load]), load_id[load], [_i, _i, _i, _i, _i, _i], [loads[0][load].real, loads[0][load].imag, _f, _f, _f, _f])
 
     rarray, Ok_Solution, localMin, localMax = Solve_Steady()
     return rarray, Ok_Solution
 
 #returns reward values
-def reward(pmu, loads, max_loads, reward_coefficient):
+def reward(pmu, loads, max_loads, bus_ids, reward_coefficient):
     total_reward = 0.0
-    for p in range(len(pmu)):
-        if (p < 0.94 or p > 1.06):
+    '''print(len(pmu))
+    print(pmu)
+    print(reward_coefficient)
+    print(loads)
+    print(max_loads)
+    print(len(loads[0])== len(max_loads[0]))
+    print(len(loads[0]) == len(pmu[0]))
+    print(len(pmu[0]))
+    print(len(loads[0]))'''
+    for p in range(len(loads[0])):
+
+        if (pmu[0][int(bus_ids[p]) - 1] < 0.94 or pmu[0][int(bus_ids[p]) - 1] > 1.06):
             total_reward -= reward_coefficient[p]
         else:
-            total_reward += (loads[p] / max_loads[p]) * reward_coefficient[p]
-
-
+            total_reward += (abs(loads[0][p]) / abs(max_loads[0][p])) * reward_coefficient[p]
 
     return total_reward
 
-def run_rollout(cur_load, max_loads):
-    return 1.0
+
+def run_rollout(cur_load, max_loads, bus_name, load_id, depth):
+
+    if (depth == 1):
+        rarray, ok = steadyStateSolve(cur_load, bus_name, load_id)
+        if (ok != 0):
+            print(ok)
+            print('Not ok')
+            return -1000000.0
+        else:
+            r = reward(rarray, cur_load, max_loads, bus_name, [1.0 for x in range(len(cur_load[0]))])
+            print(r)
+            return r
+    max_reward = []
+    for action in range(len(Bus_ids)):
+        if (cur_load[0][action] == 0):
+            max_reward.append(-10000000.0)
+            continue
+        my_load = copy.deepcopy(cur_load)
+        my_load[0][action] -= Load_Amount[0][action] / 10.0
+        max_reward.append(run_rollout(my_load, max_loads, bus_name, load_id, depth - 1))
+
+    return max(max_reward)
+
+def print_pmu(pmus, bus_ids):
+    for id in bus_ids:
+        sys.stdout.write(str(pmus[0][int(id) - 1]) +  " ")
+    print("")
+
+def pmu_ok(pmu, bus_ids):
+    print(bus_ids)
+    for id in bus_ids:
+        print(pmu[0][int(id) - 1])
+        if (pmu[0][int(id) - 1] < 0.94 or pmu[0][int(id) - 1] > 1.06):
+            return False
+    print("It worked!")
+    return True
+
+def begin_uniform_loadshed():
+    Initialize_Case()
+
+    cplxPower, cplxCurrent, cplImpedance, Bus_ids, Load_Numbers, Load_Amount = ZIP_Loads()
+
+    load_set = copy.deepcopy(Load_Amount)
+
+    first_rarray, ok = steadyStateSolve(Load_Amount, Bus_ids, Load_Numbers)
+    print_pmu(first_rarray, Bus_ids)
+
+    rarray = copy.deepcopy(first_rarray)
+    violation_indices = []
+    for id in range(len(Bus_ids)):
+        if (rarray[0][int(Bus_ids[id]) - 1] < 0.94 or rarray[0][int(Bus_ids[id]) - 1] > 1.06):
+            violation_indices.append(id)
+    total_iterations = 0
+
+    while (not pmu_ok(rarray, Bus_ids)):
+        for id in violation_indices:
+            load_set[0][id] -= Load_Amount[0][id] / 10.0
+
+        rarray, ok = steadyStateSolve(load_set, Bus_ids, Load_Numbers)
+
+        total_iterations += 1
+        if (total_iterations > 5):
+            print("finished!")
+            break
+    print_pmu(first_rarray, Bus_ids)
+    print_pmu(rarray, Bus_ids)
+    print(Load_Amount)
+    print(load_set)
 
 def begin_policy_rollout():
     Initialize_Case()
@@ -411,14 +487,58 @@ def begin_policy_rollout():
     cplxPower, cplxCurrent, cplImpedance, Bus_ids, Load_Numbers, Load_Amount = ZIP_Loads()
 
     print(Load_Amount)
+    load_set = copy.deepcopy(Load_Amount)
+    print(Load_Amount)
+    first_rarray, ok = steadyStateSolve(Load_Amount, Bus_ids, Load_Numbers)
+    print(Bus_ids)
+
+    print(Load_Numbers)
+    print(len(first_rarray[0]))
+    print('THis is the reward')
+    print(reward(first_rarray, Load_Amount, Load_Amount, Bus_ids, [1.0 for x in range(len(first_rarray[0]))]))
+
+    last_rarray = []
+    total_iterations = 0
     while True:
         max_reward = []
         for action in range(len(Bus_ids)):
-            cur_load = copy.deepcopy(Load_Amount)
-            cur_load[action] -= Load_Amount[action] / 10.0
-            max_reward.append(run_rollout(cur_load, Load_Amount))
-        
-        pass
+            if (load_set[0][action] == 0):
+                max_reward.append(-10000000.0)
+                continue
+
+            cur_load = copy.deepcopy(load_set)
+            cur_load[0][action] -= Load_Amount[0][action] / 10.0
+
+            max_reward.append(run_rollout(cur_load, Load_Amount, Bus_ids, Load_Numbers, 1))
+        #print(max_reward)
+
+        optimal_action = max_reward.index(max(max_reward))
+        load_set[0][optimal_action] -= Load_Amount[0][optimal_action] / 10.0
+
+        rarray, ok = steadyStateSolve(load_set, Bus_ids, Load_Numbers)
+        last_rarray = rarray
+        #print_pmu(rarray, Bus_ids)
+
+        dont_break = False
+        #print(max_reward)
+        #print(len(rarray))
+        for p in Bus_ids:
+            if (rarray[0][int(p) - 1] < 0.94 or rarray[0][int(p) - 1] > 1.06):
+                print('Solved it!')
+                dont_break = True
+
+        if (not dont_break):
+            break
+        total_iterations += 1
+
+
+    print(Load_Amount)
+    print(load_set)
+    print_pmu(first_rarray, Bus_ids)
+    print_pmu(last_rarray, Bus_ids)
+    print(total_iterations)
+    print(len(Bus_ids))
+
 
 
 
@@ -495,7 +615,10 @@ def Change_OpPoint(Load_Numbs, Load_IDs, Complex_Power, Complex_Current, Complex
 		
 		
 def main():
-	steadyStateChangeInitSolution() #Basic case to solve the case with no dynamcis
+    begin_uniform_loadshed()
+    #begin_policy_rollout()
+
+	#steadyStateChangeInitSolution() #Basic case to solve the case with no dynamcis
 
 
 
