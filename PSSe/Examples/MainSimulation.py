@@ -1,4 +1,3 @@
-# File:"C:\Program Files (x86)\PTI\PSSEXplore33\EXAMPLE\My_py.py", generated on TUE, AUG 11 2015   8:29, release 33.05.02
 from __future__ import division
 from collections import defaultdict
 import os,sys
@@ -53,8 +52,8 @@ def buildUnstableCase():
         
         realPower = complex(cplxPower[x]).real
         reactivePower = complex(cplxPower[x]).imag
-        changedRealPower = realPower + realPower*random.uniform(-0.5,0.5)
-        changedImaginaryPower = reactivePower + reactivePower*random.uniform(-0.5,0.5)
+        changedRealPower = realPower + realPower*random.uniform(-0.2,0.5)
+        changedImaginaryPower = reactivePower + reactivePower*random.uniform(-0.2,0.5)
         psspy.load_chng_4(int(Bus_ids[x]),Load_Numbers[x],[_i,_i,_i,_i,_i,_i],[changedRealPower, changedImaginaryPower,_f,_f,_f,_f]) #Tell PSS/e to change the bus loading
       
     rarray, Ok_Solution, localMin, localMax = Solve_Steady()
@@ -698,24 +697,46 @@ def Change_OpPoint(Load_Numbs, Load_IDs, Complex_Power, Complex_Current, Complex
 		
 
 def main():
-    for i in range(50):
-        case_file = 'newCase_' + str(i) + '.sav'
+    totalRealPowerLeftUniform = []
+    totalImagPowerLeftUniform = []
+    worstBus = []
 
+    for i in range(0,50):
+        psspy.lines_per_page_one_device(1,10000)   
+        psspy.progress_output(2,r"""output""",[0,0])
+        print i, 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+        case_file = 'caseNumber_' + str(i) + '.sav'
+        print case_file
         load_un, rarray_un, max_loads, bus_ids = begin_uniform_loadshed(case_file)
+        print '\n'
+        print '\n'      
+        realMaxLoad = 0
+        realCurrentLoad = 0
+        imagMaxLoad = 0
+        imagCurrentLoad = 0
+        for y in range(0, len(load_un[0])):
+            realMaxLoad += complex(max_loads[0][y]).real 
+            realCurrentLoad += complex(load_un[0][y]).real
+            imagMaxLoad += complex(max_loads[0][y]).imag
+            imagCurrentLoad += complex(load_un[0][y]).imag
+        print realCurrentLoad/realMaxLoad, imagCurrentLoad/imagMaxLoad
+        totalRealPowerLeftUniform.append(realCurrentLoad/realMaxLoad)
+        totalImagPowerLeftUniform.append(imagCurrentLoad/imagMaxLoad)
+        worstBus.append(min(rarray_un[0]))
+        #print(rarray_un), sum(map(float, load_un))/sum(map(float, max_loads))
         #load_single, rarray_single, max_loads, bus_ids = begin_policy_rollout(case_file, 1)
+        
         load_roll, rarray_roll, max_loads, bus_ids = begin_policy_rollout(case_file, 0)
         load_sel, rarray_sel, max_loads, bus_ids = begin_selective_loadshed(case_file)
         print(reward(rarray_un, load_un, max_loads, bus_ids, [1.0 for x in range(len(load_un[0]))]))
         print(reward(rarray_roll, load_roll, max_loads, bus_ids, [1.0 for x in range(len(load_un[0]))]))
         print(reward(rarray_sel, load_sel, max_loads, bus_ids, [1.0 for x in range(len(load_un[0]))]))
         print(load_sel)
-
+        
 	#steadyStateChangeInitSolution() #Basic case to solve the case with no dynamcis
-
-
-
+    print totalImagPowerLeftUniform
+    print totalRealPowerLeftUniform
+    print worstBus
+    print min(worstBus)
 if __name__ == "__main__": 
 	main()	
-
-
-
