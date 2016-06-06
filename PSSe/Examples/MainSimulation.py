@@ -28,9 +28,10 @@ redirect.psse2py()
 in_file = 'newCase_1.sav'
 
 #Initializes our case with name defined by in_file#
-def Initialize_Case():
+def Initialize_Case(case_file):
+
 	psspy.psseinit(150000) #Initialize size of case, just choose large number
-	psspy.case(in_file) #Load example case savnw.sav
+	psspy.case(case_file) #Load example case savnw.sav
 
 
 #Change initial conditions by scaling loads in case#
@@ -405,17 +406,17 @@ def reward(pmu, loads, max_loads, bus_ids, reward_coefficient):
     for p in range(len(loads[0])):
 
         if (pmu[0][int(bus_ids[p]) - 1] < 0.94 or pmu[0][int(bus_ids[p]) - 1] > 1.06):
-            total_reward -= reward_coefficient[p]
+            total_reward -= (1.0 - pmu[0][int(bus_ids[p]) - 1]) * reward_coefficient[p] * abs(max_loads[0][p])
         else:
-            total_reward += (abs(loads[0][p]) / abs(max_loads[0][p])) * reward_coefficient[p]
+            total_reward += abs(loads[0][p]) * reward_coefficient[p]
 
     return total_reward
 
 
 def run_rollout(cur_load, max_loads, bus_name, load_id, depth):
+    rarray, ok = steadyStateSolve(cur_load, bus_name, load_id)
 
-    if (depth == 1):
-        rarray, ok = steadyStateSolve(cur_load, bus_name, load_id)
+    if (depth == 0):
         if (ok != 0):
             print(ok)
             print('Not ok')
@@ -424,16 +425,32 @@ def run_rollout(cur_load, max_loads, bus_name, load_id, depth):
             r = reward(rarray, cur_load, max_loads, bus_name, [1.0 for x in range(len(cur_load[0]))])
             print(r)
             return r
-    max_reward = []
-    for action in range(len(Bus_ids)):
-        if (cur_load[0][action] == 0):
-            max_reward.append(-10000000.0)
-            continue
-        my_load = copy.deepcopy(cur_load)
-        my_load[0][action] -= Load_Amount[0][action] / 10.0
-        max_reward.append(run_rollout(my_load, max_loads, bus_name, load_id, depth - 1))
 
-    return max(max_reward)
+    last_rewards = [reward(rarray, cur_load, max_loads, bus_name, [1.0 for x in range(len(cur_load[0]))])]
+
+    total_iterations = 0
+    while(not pmu_ok(rarray, bus_name)):
+        max_reward = []
+        for action in range(len(bus_name)):
+            if (cur_load[0][action] == 0):
+                max_reward.append(-10000000.0)
+                continue
+            my_load = copy.deepcopy(cur_load)
+            my_load[0][action] -= max_loads[0][action] / 10.0
+            max_reward.append(run_rollout(my_load, max_loads, bus_name, load_id, depth - 1))
+        total_iterations += 1
+        if (total_iterations > 20):
+            max_reward.append(-10000000.00)
+            continue
+
+        optimal_action = max_reward.index(max(max_reward))
+        cur_load[0][optimal_action] -= max_loads[0][optimal_action] / 10.0
+
+        rarray, ok = steadyStateSolve(cur_load, bus_name, load_id)
+        last_rewards = max_reward
+
+
+    return max(last_rewards)
 
 def print_pmu(pmus, bus_ids):
     for id in bus_ids:
@@ -443,14 +460,12 @@ def print_pmu(pmus, bus_ids):
 def pmu_ok(pmu, bus_ids):
     print(bus_ids)
     for id in bus_ids:
-        print(pmu[0][int(id) - 1])
         if (pmu[0][int(id) - 1] < 0.94 or pmu[0][int(id) - 1] > 1.06):
             return False
-    print("It worked!")
     return True
 
-def begin_uniform_loadshed():
-    Initialize_Case()
+def begin_uniform_loadshed(case_file):
+    Initialize_Case(case_file)
 
     cplxPower, cplxCurrent, cplImpedance, Bus_ids, Load_Numbers, Load_Amount = ZIP_Loads()
 
@@ -480,9 +495,44 @@ def begin_uniform_loadshed():
     print_pmu(rarray, Bus_ids)
     print(Load_Amount)
     print(load_set)
+    return load_set, rarray, Load_Amount, Bus_ids
 
-def begin_policy_rollout():
-    Initialize_Case()
+def begin_selective_loadshed(case_file):
+    Initialize_Case(case_file)
+
+    cplxPower, cplxCurrent, cplImpedance, Bus_ids, Load_Numbers, Load_Amount = ZIP_Loads()
+
+    load_set = copy.deepcopy(Load_Amount)
+
+    first_rarray, ok = steadyStateSolve(Load_Amount, Bus_ids, Load_Numbers)
+    print_pmu(first_rarray, Bus_ids)
+
+    rarray = copy.deepcopy(first_rarray)
+
+    total_iterations = 0
+
+    while (not pmu_ok(rarray, Bus_ids)):
+        violation_indices = []
+        for id in range(len(Bus_ids)):
+            if (rarray[0][int(Bus_ids[id]) - 1] < 0.94 or rarray[0][int(Bus_ids[id]) - 1] > 1.06):
+                violation_indices.append(id)
+        for id in violation_indices:
+            load_set[0][id] -= Load_Amount[0][id] / 10.0
+
+        rarray, ok = steadyStateSolve(load_set, Bus_ids, Load_Numbers)
+
+        total_iterations += 1
+        if (total_iterations > 5):
+            print("finished!")
+            break
+    print_pmu(first_rarray, Bus_ids)
+    print_pmu(rarray, Bus_ids)
+    print(Load_Amount)
+    print(load_set)
+    return load_set, rarray, Load_Amount, Bus_ids
+
+def begin_policy_rollout(case_name, depth):
+    Initialize_Case(case_name)
 
     cplxPower, cplxCurrent, cplImpedance, Bus_ids, Load_Numbers, Load_Amount = ZIP_Loads()
 
@@ -509,10 +559,15 @@ def begin_policy_rollout():
             cur_load = copy.deepcopy(load_set)
             cur_load[0][action] -= Load_Amount[0][action] / 10.0
 
-            max_reward.append(run_rollout(cur_load, Load_Amount, Bus_ids, Load_Numbers, 1))
+            max_reward.append(run_rollout(cur_load, Load_Amount, Bus_ids, Load_Numbers, depth))
+            pass
         #print(max_reward)
 
         optimal_action = max_reward.index(max(max_reward))
+        if (optimal_action == 0):
+            pass
+        if (total_iterations % 3 == 0):
+            pass
         load_set[0][optimal_action] -= Load_Amount[0][optimal_action] / 10.0
 
         rarray, ok = steadyStateSolve(load_set, Bus_ids, Load_Numbers)
@@ -538,6 +593,7 @@ def begin_policy_rollout():
     print_pmu(last_rarray, Bus_ids)
     print(total_iterations)
     print(len(Bus_ids))
+    return load_set, last_rarray, Load_Amount, Bus_ids
 
 
 
@@ -615,9 +671,17 @@ def Change_OpPoint(Load_Numbs, Load_IDs, Complex_Power, Complex_Current, Complex
 		
 		
 def main():
-    begin_uniform_loadshed()
-    #begin_policy_rollout()
+    for i in range(50):
+        case_file = 'newCase_' + str(i) + '.sav'
 
+        load_un, rarray_un, max_loads, bus_ids = begin_uniform_loadshed(case_file)
+        #load_single, rarray_single, max_loads, bus_ids = begin_policy_rollout(case_file, 1)
+        load_roll, rarray_roll, max_loads, bus_ids = begin_policy_rollout(case_file, 0)
+        load_sel, rarray_sel, max_loads, bus_ids = begin_selective_loadshed(case_file)
+        print(reward(rarray_un, load_un, max_loads, bus_ids, [1.0 for x in range(len(load_un[0]))]))
+        print(reward(rarray_roll, load_roll, max_loads, bus_ids, [1.0 for x in range(len(load_un[0]))]))
+        print(reward(rarray_sel, load_sel, max_loads, bus_ids, [1.0 for x in range(len(load_un[0]))]))
+        print(load_sel)
 	#steadyStateChangeInitSolution() #Basic case to solve the case with no dynamcis
 
 
