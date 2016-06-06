@@ -18,6 +18,7 @@ import math
 import multiprocessing
 import time
 import sys
+import csv
 #import matplotlib
 _i=psspy.getdefaultint()
 _f=psspy.getdefaultreal()
@@ -695,34 +696,44 @@ def Change_OpPoint(Load_Numbs, Load_IDs, Complex_Power, Complex_Current, Complex
 		location3 += 1
 		
 		
-
+def percentOfLoadsSurviving(max_loads, load_un, totalImagPowerLeft, totalRealPowerLeft, voltages, worstBus):
+    realMaxLoad = 0
+    realCurrentLoad = 0
+    imagMaxLoad = 0
+    imagCurrentLoad = 0    
+    for y in range(0, len(load_un[0])):
+        realMaxLoad += complex(max_loads[0][y]).real 
+        realCurrentLoad += complex(load_un[0][y]).real
+        imagMaxLoad += complex(max_loads[0][y]).imag
+        imagCurrentLoad += complex(load_un[0][y]).imag	
+    totalRealPowerLeft.append(realCurrentLoad/realMaxLoad)
+    totalImagPowerLeft.append(imagCurrentLoad/imagMaxLoad)	
+    worstBus.append(min(voltages))
 def main():
+    startTime = time.time()
     totalRealPowerLeftUniform = []
     totalImagPowerLeftUniform = []
-    worstBus = []
-
-    for i in range(0,50):
+    totalRealPowerLeftRollout = []
+    totalImagPowerLeftRollout = []
+    totalRealPowerLeftRollout1 = []
+    totalImagPowerLeftRollout1 = []
+    worstUniform = []
+    worstRollout = []
+    fileName = 'realPowerComparison.csv'
+    fileName2 = 'imagPowerComparison.csv'
+    for i in range(0,1):
         psspy.lines_per_page_one_device(1,10000)   
         psspy.progress_output(2,r"""output""",[0,0])
-        print i, 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
         case_file = 'caseNumber_' + str(i) + '.sav'
-        print case_file
         load_un, rarray_un, max_loads, bus_ids = begin_uniform_loadshed(case_file)
-        print '\n'
-        print '\n'      
-        realMaxLoad = 0
-        realCurrentLoad = 0
-        imagMaxLoad = 0
-        imagCurrentLoad = 0
-        for y in range(0, len(load_un[0])):
-            realMaxLoad += complex(max_loads[0][y]).real 
-            realCurrentLoad += complex(load_un[0][y]).real
-            imagMaxLoad += complex(max_loads[0][y]).imag
-            imagCurrentLoad += complex(load_un[0][y]).imag
-        print realCurrentLoad/realMaxLoad, imagCurrentLoad/imagMaxLoad
-        totalRealPowerLeftUniform.append(realCurrentLoad/realMaxLoad)
-        totalImagPowerLeftUniform.append(imagCurrentLoad/imagMaxLoad)
-        worstBus.append(min(rarray_un[0]))
+        percentOfLoadsSurviving(max_loads, load_un, totalImagPowerLeftUniform, totalRealPowerLeftUniform, rarray_un[0], worstUniform)
+        load_single, rarray_single, max_loads, bus_ids = begin_policy_rollout(case_file, 0)
+        percentOfLoadsSurviving(max_loads, load_single, totalImagPowerLeftRollout, totalRealPowerLeftRollout, rarray_single[0], worstRollout)
+        load_single, rarray_single, max_loads, bus_ids = begin_policy_rollout(case_file, 1)
+        percentOfLoadsSurviving(max_loads, load_single, totalImagPowerLeftRollout1, totalRealPowerLeftRollout1, rarray_single[0], worstRollout)
+         
+        
+        '''
         #print(rarray_un), sum(map(float, load_un))/sum(map(float, max_loads))
         #load_single, rarray_single, max_loads, bus_ids = begin_policy_rollout(case_file, 1)
         
@@ -732,11 +743,23 @@ def main():
         print(reward(rarray_roll, load_roll, max_loads, bus_ids, [1.0 for x in range(len(load_un[0]))]))
         print(reward(rarray_sel, load_sel, max_loads, bus_ids, [1.0 for x in range(len(load_un[0]))]))
         print(load_sel)
-        
+        '''
 	#steadyStateChangeInitSolution() #Basic case to solve the case with no dynamcis
     print totalImagPowerLeftUniform
     print totalRealPowerLeftUniform
-    print worstBus
-    print min(worstBus)
+    print worstUniform, worstRollout
+    print min(worstUniform), min(worstRollout)
+    
+    with open(fileName, "a") as fp:
+        wr = csv.writer(fp, dialect='excel')
+        wr.writerow(totalRealPowerLeftUniform)
+        wr.writerow(totalRealPowerLeftRollout)
+        wr.writerow(totalRealPowerLeftRollout1)	
+    with open(fileName2, "a") as fp:
+        wr = csv.writer(fp, dialect='excel')
+        wr.writerow(totalImagPowerLeftUniform)
+        wr.writerow(totalImagPowerLeftRollout)
+        wr.writerow(totalImagPowerLeftRollout1)	
+    print time.time() - startTime		
 if __name__ == "__main__": 
 	main()	
