@@ -717,11 +717,16 @@ def main():
     totalImagPowerLeftRollout = []
     totalRealPowerLeftRollout1 = []
     totalImagPowerLeftRollout1 = []
+    totalRealPowerLeftSelective = []
+    totalImagPowerLeftSelective = []
+    
     worstUniform = []
     worstRollout = []
+    worstRollout1 = []
+    worstSelective = []	
     fileName = 'realPowerComparison.csv'
     fileName2 = 'imagPowerComparison.csv'
-    for i in range(0,1):
+    for i in range(0,50):
         psspy.lines_per_page_one_device(1,10000)   
         psspy.progress_output(2,r"""output""",[0,0])
         case_file = 'caseNumber_' + str(i) + '.sav'
@@ -729,9 +734,11 @@ def main():
         percentOfLoadsSurviving(max_loads, load_un, totalImagPowerLeftUniform, totalRealPowerLeftUniform, rarray_un[0], worstUniform)
         load_single, rarray_single, max_loads, bus_ids = begin_policy_rollout(case_file, 0)
         percentOfLoadsSurviving(max_loads, load_single, totalImagPowerLeftRollout, totalRealPowerLeftRollout, rarray_single[0], worstRollout)
-        load_single, rarray_single, max_loads, bus_ids = begin_policy_rollout(case_file, 1)
-        percentOfLoadsSurviving(max_loads, load_single, totalImagPowerLeftRollout1, totalRealPowerLeftRollout1, rarray_single[0], worstRollout)
-         
+        load_single1, rarray_single1, max_loads1, bus_ids1 = begin_policy_rollout(case_file, 1)
+        percentOfLoadsSurviving(max_loads1, load_single1, totalImagPowerLeftRollout1, totalRealPowerLeftRollout1, rarray_single1[0], worstRollout1)
+        load_sel, rarray_sel, max_loads, bus_ids = begin_selective_loadshed(case_file)
+        percentOfLoadsSurviving(max_loads, load_sel, totalImagPowerLeftSelective, totalRealPowerLeftSelective, rarray_sel[0], worstSelective)
+
         
         '''
         #print(rarray_un), sum(map(float, load_un))/sum(map(float, max_loads))
@@ -748,18 +755,28 @@ def main():
     print totalImagPowerLeftUniform
     print totalRealPowerLeftUniform
     print worstUniform, worstRollout
-    print min(worstUniform), min(worstRollout)
+    print min(worstUniform), min(worstRollout), min(worstRollout1), min(worstSelective)
     
     with open(fileName, "a") as fp:
         wr = csv.writer(fp, dialect='excel')
+        wr.writerow('Uniform')
         wr.writerow(totalRealPowerLeftUniform)
+        wr.writerow('Rollout0')
         wr.writerow(totalRealPowerLeftRollout)
-        wr.writerow(totalRealPowerLeftRollout1)	
+        wr.writerow('Rollout1')
+        wr.writerow(totalRealPowerLeftRollout1)
+        wr.writerow('Selective')
+        wr.writerow(totalRealPowerLeftSelective)	
     with open(fileName2, "a") as fp:
         wr = csv.writer(fp, dialect='excel')
+        wr.writerow('Uniform')
         wr.writerow(totalImagPowerLeftUniform)
+        wr.writerow('Rollout0')
         wr.writerow(totalImagPowerLeftRollout)
-        wr.writerow(totalImagPowerLeftRollout1)	
+        wr.writerow('Rollout1')
+        wr.writerow(totalImagPowerLeftRollout1)
+        wr.writerow('Selective')
+        wr.writerow(totalImagPowerLeftSelective)
     print time.time() - startTime		
 if __name__ == "__main__": 
 	main()	
