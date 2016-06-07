@@ -60,6 +60,22 @@ def buildUnstableCase():
     rarray, Ok_Solution, localMin, localMax = Solve_Steady()
 
     return rarray
+
+def build_case():
+    psspy.save(r"""C:\Users\Trevor\Documents\GitHub\CS-533\PSSe\Examples\Trash.txt""")
+    foundNewCase = 0
+
+    while foundNewCase == 0:
+        Initialize_Case('staticCase39.sav')
+        print('Building Case')
+        busVoltages = buildUnstableCase()
+        if min(busVoltages[0]) < 0.94 and min(busVoltages[0]) > 0.8 and max(busVoltages[0]) < 1.06:
+            break
+    print('Found case!')
+    return ZIP_Loads()
+
+
+
 		
 #Change initial conditions by scaling loads in case#
 def Change_Init_Conds(Load_Numbs, Load_IDs, Complex_Power, Complex_Current, Complex_Impedance):
@@ -709,7 +725,10 @@ def percentOfLoadsSurviving(max_loads, load_un, totalImagPowerLeft, totalRealPow
     totalRealPowerLeft.append(realCurrentLoad/realMaxLoad)
     totalImagPowerLeft.append(imagCurrentLoad/imagMaxLoad)	
     worstBus.append(min(voltages))
+
+
 def main():
+
     startTime = time.time()
     totalRealPowerLeftUniform = []
     totalImagPowerLeftUniform = []
@@ -730,6 +749,7 @@ def main():
         psspy.lines_per_page_one_device(1,10000)   
         psspy.progress_output(2,r"""output""",[0,0])
         case_file = 'caseNumber_' + str(i) + '.sav'
+
         load_un, rarray_un, max_loads, bus_ids = begin_uniform_loadshed(case_file)
         percentOfLoadsSurviving(max_loads, load_un, totalImagPowerLeftUniform, totalRealPowerLeftUniform, rarray_un[0], worstUniform)
         load_single, rarray_single, max_loads, bus_ids = begin_policy_rollout(case_file, 0)
@@ -743,14 +763,16 @@ def main():
         '''
         #print(rarray_un), sum(map(float, load_un))/sum(map(float, max_loads))
         #load_single, rarray_single, max_loads, bus_ids = begin_policy_rollout(case_file, 1)
-        
+
         load_roll, rarray_roll, max_loads, bus_ids = begin_policy_rollout(case_file, 0)
         load_sel, rarray_sel, max_loads, bus_ids = begin_selective_loadshed(case_file)
+
         print(reward(rarray_un, load_un, max_loads, bus_ids, [1.0 for x in range(len(load_un[0]))]))
+        '''
         print(reward(rarray_roll, load_roll, max_loads, bus_ids, [1.0 for x in range(len(load_un[0]))]))
         print(reward(rarray_sel, load_sel, max_loads, bus_ids, [1.0 for x in range(len(load_un[0]))]))
         print(load_sel)
-        '''
+
 	#steadyStateChangeInitSolution() #Basic case to solve the case with no dynamcis
     print totalImagPowerLeftUniform
     print totalRealPowerLeftUniform
@@ -773,10 +795,16 @@ def main():
         wr.writerow(totalImagPowerLeftUniform)
         wr.writerow('Rollout0')
         wr.writerow(totalImagPowerLeftRollout)
+<<<<<<< HEAD
         wr.writerow('Rollout1')
         wr.writerow(totalImagPowerLeftRollout1)
         wr.writerow('Selective')
         wr.writerow(totalImagPowerLeftSelective)
     print time.time() - startTime		
+=======
+        wr.writerow(totalImagPowerLeftRollout1)	
+    print time.time() - startTime
+
+>>>>>>> e347af30a1a3a9a556730851359690e1a31ab38f
 if __name__ == "__main__": 
-	main()	
+	main()
