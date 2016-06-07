@@ -48,7 +48,6 @@ def createNewUnstableCase():
 def buildUnstableCase():
    
     cplxPower, cplxCurrent, cplImpedance, Bus_ids, Load_Numbers, Load_Amount = ZIP_Loads()
-    print Bus_ids
     for x in range(0, len(Bus_ids)):
         
         realPower = complex(cplxPower[x]).real
@@ -62,16 +61,15 @@ def buildUnstableCase():
     return rarray
 
 def build_case():
-    psspy.save(r"""C:\Users\Trevor\Documents\GitHub\CS-533\PSSe\Examples\Trash.txt""")
+    psspy.lines_per_page_one_device(1, 10)
+    psspy.progress_output(2, r"""Trash""", [0,0])
     foundNewCase = 0
 
     while foundNewCase == 0:
-        Initialize_Case('staticCase39.sav')
-        print('Building Case')
+        Initialize_Case(in_file)
         busVoltages = buildUnstableCase()
         if min(busVoltages[0]) < 0.94 and min(busVoltages[0]) > 0.8 and max(busVoltages[0]) < 1.06:
             break
-    print('Found case!')
     return ZIP_Loads()
 
 
@@ -426,7 +424,6 @@ def steadyStateChangeInitSolution():
     return lineMVAlist, Ok_Solution, localMin, localMax
 #Returns pmu vals
 def steadyStateSolve(loads, bus_name, load_id):
-    print(bus_name)
     for load in range(len(loads[0])):
         psspy.load_chng_4(int(bus_name[load]), load_id[load], [_i, _i, _i, _i, _i, _i], [loads[0][load].real, loads[0][load].imag, _f, _f, _f, _f])
 
@@ -455,7 +452,7 @@ def reward(pmu, loads, max_loads, bus_ids, reward_coefficient):
     return total_reward
 
 
-def run_rollout(cur_load, max_loads, bus_name, load_id, depth):
+def run_rollout(cur_load, max_loads, bus_name, load_id, depth, reward_list):
     rarray, ok = steadyStateSolve(cur_load, bus_name, load_id)
 
     if (depth == 0):
@@ -464,11 +461,11 @@ def run_rollout(cur_load, max_loads, bus_name, load_id, depth):
             print('Not ok')
             return -1000000.0
         else:
-            r = reward(rarray, cur_load, max_loads, bus_name, [1.0 for x in range(len(cur_load[0]))])
+            r = reward(rarray, cur_load, max_loads, bus_name, reward_list)
             print(r)
             return r
 
-    last_rewards = [reward(rarray, cur_load, max_loads, bus_name, [1.0 for x in range(len(cur_load[0]))])]
+    last_rewards = [reward(rarray, cur_load, max_loads, bus_name, reward_list)]
 
     total_iterations = 0
     while(not pmu_ok(rarray, bus_name)):
@@ -479,7 +476,7 @@ def run_rollout(cur_load, max_loads, bus_name, load_id, depth):
                 continue
             my_load = copy.deepcopy(cur_load)
             my_load[0][action] -= max_loads[0][action] / 10.0
-            max_reward.append(run_rollout(my_load, max_loads, bus_name, load_id, depth - 1))
+            max_reward.append(run_rollout(my_load, max_loads, bus_name, load_id, depth - 1, reward_list))
         total_iterations += 1
         if (total_iterations > 20):
             max_reward.append(-10000000.00)
@@ -573,8 +570,9 @@ def begin_selective_loadshed(case_file):
     print(load_set)
     return load_set, rarray, Load_Amount, Bus_ids
 
-def begin_policy_rollout(case_name, depth):
+def begin_policy_rollout(case_name, depth, reward_list=None):
     Initialize_Case(case_name)
+
 
     cplxPower, cplxCurrent, cplImpedance, Bus_ids, Load_Numbers, Load_Amount = ZIP_Loads()
 
@@ -584,10 +582,13 @@ def begin_policy_rollout(case_name, depth):
     first_rarray, ok = steadyStateSolve(Load_Amount, Bus_ids, Load_Numbers)
     print(Bus_ids)
 
+    if (reward_list is None):
+        reward_list = [1.0 for x in range(len(first_rarray[0]))]
+
     print(Load_Numbers)
     print(len(first_rarray[0]))
     print('THis is the reward')
-    print(reward(first_rarray, Load_Amount, Load_Amount, Bus_ids, [1.0 for x in range(len(first_rarray[0]))]))
+    print(reward(first_rarray, Load_Amount, Load_Amount, Bus_ids, reward_list))
 
     last_rarray = []
     total_iterations = 0
@@ -601,7 +602,7 @@ def begin_policy_rollout(case_name, depth):
             cur_load = copy.deepcopy(load_set)
             cur_load[0][action] -= Load_Amount[0][action] / 10.0
 
-            max_reward.append(run_rollout(cur_load, Load_Amount, Bus_ids, Load_Numbers, depth))
+            max_reward.append(run_rollout(cur_load, Load_Amount, Bus_ids, Load_Numbers, depth, reward_list))
             pass
         #print(max_reward)
 
@@ -726,6 +727,23 @@ def percentOfLoadsSurviving(max_loads, load_un, totalImagPowerLeft, totalRealPow
     totalImagPowerLeft.append(imagCurrentLoad/imagMaxLoad)	
     worstBus.append(min(voltages))
 
+def generate_reward_list(length):
+    reward_list = [1.0 for x in range(len(length))]
+    high_priority = random.sample(range(length), 6)
+    for h in high_priority:
+        reward_list[h] = 3.0
+
+    med_choices = []
+    for m in range(len(reward_list)):
+        if (reward_list[m] != 3.0):
+            med_choices.append(m)
+
+    medium_priority = random.sample(med_choices, 7)
+    for m in medium_priority:
+        reward_list[m] = 2.0
+
+    return reward_list
+
 
 def main():
 
@@ -747,11 +765,17 @@ def main():
 
         load_un, rarray_un, max_loads, bus_ids = begin_uniform_loadshed(case_file)
         percentOfLoadsSurviving(max_loads, load_un, totalImagPowerLeftUniform, totalRealPowerLeftUniform, rarray_un[0], worstUniform)
+        load_sel, rarray_sel, max_loads, bus_ids = begin_selective_loadshed(case_file)
         load_single, rarray_single, max_loads, bus_ids = begin_policy_rollout(case_file, 0)
         percentOfLoadsSurviving(max_loads, load_single, totalImagPowerLeftRollout, totalRealPowerLeftRollout, rarray_single[0], worstRollout)
+        '''
         load_single, rarray_single, max_loads, bus_ids = begin_policy_rollout(case_file, 1)
         percentOfLoadsSurviving(max_loads, load_single, totalImagPowerLeftRollout1, totalRealPowerLeftRollout1, rarray_single[0], worstRollout)
-         
+        '''
+        print(reward(rarray_un, load_un, max_loads, bus_ids, [1.0 for x in range(len(load_un[0]))]))
+        print(reward(rarray_sel, load_sel, max_loads, bus_ids, [1.0 for x in range(len(load_un[0]))]))
+        print(reward(rarray_single, load_single, max_loads, bus_ids, [1.0 for x in range(len(load_un[0]))]))
+
         
         '''
         #print(rarray_un), sum(map(float, load_un))/sum(map(float, max_loads))
