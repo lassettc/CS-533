@@ -60,6 +60,21 @@ def buildUnstableCase():
     rarray, Ok_Solution, localMin, localMax = Solve_Steady()
 
     return rarray
+
+def build_case():
+
+    cplxPower, cplxCurrent, cplImpedance, Bus_ids, Load_Numbers, Load_Amount = ZIP_Loads()
+    print Bus_ids
+    for x in range(0, len(Bus_ids)):
+
+        realPower = complex(cplxPower[x]).real
+        reactivePower = complex(cplxPower[x]).imag
+        changedRealPower = realPower + realPower*random.uniform(-0.5,0.5)
+        changedImaginaryPower = reactivePower + reactivePower*random.uniform(-0.5,0.5)
+        psspy.load_chng_4(int(Bus_ids[x]),Load_Numbers[x],[_i,_i,_i,_i,_i,_i],[changedRealPower, changedImaginaryPower,_f,_f,_f,_f]) #Tell PSS/e to change the bus loading
+
+    return ZIP_Loads()
+
 		
 #Change initial conditions by scaling loads in case#
 def Change_Init_Conds(Load_Numbs, Load_IDs, Complex_Power, Complex_Current, Complex_Impedance):
@@ -698,18 +713,19 @@ def Change_OpPoint(Load_Numbs, Load_IDs, Complex_Power, Complex_Current, Complex
 		
 
 def main():
-    for i in range(50):
+    for i in range(1,50):
         case_file = 'newCase_' + str(i) + '.sav'
 
         load_un, rarray_un, max_loads, bus_ids = begin_uniform_loadshed(case_file)
         #load_single, rarray_single, max_loads, bus_ids = begin_policy_rollout(case_file, 1)
-        load_roll, rarray_roll, max_loads, bus_ids = begin_policy_rollout(case_file, 0)
-        load_sel, rarray_sel, max_loads, bus_ids = begin_selective_loadshed(case_file)
+        #load_roll, rarray_roll, max_loads, bus_ids = begin_policy_rollout(case_file, 0)
+        #load_sel, rarray_sel, max_loads, bus_ids = begin_selective_loadshed(case_file)
         print(reward(rarray_un, load_un, max_loads, bus_ids, [1.0 for x in range(len(load_un[0]))]))
+        '''
         print(reward(rarray_roll, load_roll, max_loads, bus_ids, [1.0 for x in range(len(load_un[0]))]))
         print(reward(rarray_sel, load_sel, max_loads, bus_ids, [1.0 for x in range(len(load_un[0]))]))
         print(load_sel)
-
+        '''
 	#steadyStateChangeInitSolution() #Basic case to solve the case with no dynamcis
 
 
