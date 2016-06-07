@@ -62,18 +62,19 @@ def buildUnstableCase():
     return rarray
 
 def build_case():
+    psspy.save(r"""C:\Users\Trevor\Documents\GitHub\CS-533\PSSe\Examples\Trash.txt""")
+    foundNewCase = 0
 
-    cplxPower, cplxCurrent, cplImpedance, Bus_ids, Load_Numbers, Load_Amount = ZIP_Loads()
-    print Bus_ids
-    for x in range(0, len(Bus_ids)):
-
-        realPower = complex(cplxPower[x]).real
-        reactivePower = complex(cplxPower[x]).imag
-        changedRealPower = realPower + realPower*random.uniform(-0.5,0.5)
-        changedImaginaryPower = reactivePower + reactivePower*random.uniform(-0.5,0.5)
-        psspy.load_chng_4(int(Bus_ids[x]),Load_Numbers[x],[_i,_i,_i,_i,_i,_i],[changedRealPower, changedImaginaryPower,_f,_f,_f,_f]) #Tell PSS/e to change the bus loading
-
+    while foundNewCase == 0:
+        Initialize_Case('staticCase39.sav')
+        print('Building Case')
+        busVoltages = buildUnstableCase()
+        if min(busVoltages[0]) < 0.94 and min(busVoltages[0]) > 0.8 and max(busVoltages[0]) < 1.06:
+            break
+    print('Found case!')
     return ZIP_Loads()
+
+
 
 		
 #Change initial conditions by scaling loads in case#
@@ -724,6 +725,8 @@ def percentOfLoadsSurviving(max_loads, load_un, totalImagPowerLeft, totalRealPow
     totalRealPowerLeft.append(realCurrentLoad/realMaxLoad)
     totalImagPowerLeft.append(imagCurrentLoad/imagMaxLoad)	
     worstBus.append(min(voltages))
+
+
 def main():
 
     startTime = time.time()
@@ -782,4 +785,4 @@ def main():
     print time.time() - startTime
 
 if __name__ == "__main__": 
-	main()	
+	main()
