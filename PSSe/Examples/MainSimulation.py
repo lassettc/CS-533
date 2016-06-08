@@ -727,7 +727,7 @@ def percentOfLoadsSurviving(max_loads, load_un, totalImagPowerLeft, totalRealPow
 
 
 def generate_reward_list(length):
-    reward_list = [1.0 for x in range(len(length))]
+    reward_list = [1.0 for x in range(length)]
     high_priority = random.sample(range(length), 6)
     for h in high_priority:
         reward_list[h] = 3.0
@@ -765,19 +765,21 @@ def main():
         psspy.lines_per_page_one_device(1,10000)   
         psspy.progress_output(2,r"""output""",[0,0])
         case_file = 'caseNumber_' + str(i) + '.sav'
+        my_r = generate_reward_list(19)
         load_un, rarray_un, max_loads, bus_ids = begin_uniform_loadshed(case_file)
         percentOfLoadsSurviving(max_loads, load_un, totalImagPowerLeftUniform, totalRealPowerLeftUniform, rarray_un[0], worstUniform)
 
         load_sel, rarray_sel, max_loads, bus_ids = begin_selective_loadshed(case_file)
-        load_single, rarray_single, max_loads, bus_ids = begin_policy_rollout(case_file, 0)
+        load_single, rarray_single, max_loads, bus_ids = begin_policy_rollout(case_file, 0, my_r)
         percentOfLoadsSurviving(max_loads, load_single, totalImagPowerLeftRollout, totalRealPowerLeftRollout, rarray_single[0], worstRollout)
         '''
         load_single, rarray_single, max_loads, bus_ids = begin_policy_rollout(case_file, 1)
         percentOfLoadsSurviving(max_loads, load_single, totalImagPowerLeftRollout1, totalRealPowerLeftRollout1, rarray_single[0], worstRollout)
         '''
-        print(reward(rarray_un, load_un, max_loads, bus_ids, [1.0 for x in range(len(load_un[0]))]))
-        print(reward(rarray_sel, load_sel, max_loads, bus_ids, [1.0 for x in range(len(load_un[0]))]))
-        print(reward(rarray_single, load_single, max_loads, bus_ids, [1.0 for x in range(len(load_un[0]))]))
+        print(reward(rarray_un, load_un, max_loads, bus_ids, my_r))
+        print(reward(rarray_sel, load_sel, max_loads, bus_ids, my_r))
+        print(reward(rarray_single, load_single, max_loads, bus_ids, my_r))
+        print(my_r)
         '''
         #print(rarray_un), sum(map(float, load_un))/sum(map(float, max_loads))
         #load_single, rarray_single, max_loads, bus_ids = begin_policy_rollout(case_file, 1)
